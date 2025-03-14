@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V2Ray Config Skimmer</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #000;
+            padding: 20px;
+            border: 2px solid #00ff00;
+            width: 90%;
+            max-width: 600px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-size: 14px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            padding: 10px;
+            border: 1px solid #000;
+            width: 100%;
+            margin: 10px 0;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        button:hover {
+            background: #ff0000;
+            color: #fff;
+        }
+        #outputLink {
+            word-break: break-all;
+            margin-top: 10px;
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>V2Ray Config Skimmer</h1>
+        <label for="subLink">Subscription Link:</label>
+        <textarea id="subLink" rows="4" placeholder="Enter your v2ray subscription link here"></textarea>
+        <label for="newRemark">New Remark:</label>
+        <input type="text" id="newRemark" placeholder="Enter the new remark for all configs">
+        <button onclick="processConfigs()">Process Configs</button>
+        <div id="output">
+            <p id="outputLink"></p>
+            <button id="downloadBtn" style="display: none;" onclick="downloadTxt()">Download as TXT</button>
+        </div>
+    </div>
+
+    <script>
+        let processedConfigs = [];
+        const githubBaseUrl = "https://raw.githubusercontent.com/1Shervin/v2ray-skimmer/main/output/";
+
+        async function processConfigs() {
+            const subLink = document.getElementById('subLink').value.trim();
+            const newRemark = document.getElementById('newRemark').value.trim();
+            const outputLink = document.getElementById('outputLink');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            if (!subLink || !newRemark) {
+                alert('Please enter both a subscription link and a new remark!');
+                return;
+            }
+
+            try {
+                let configText = subLink;
+                if (subLink.startsWith('http')) {
+                    const response = await fetch(subLink);
+                    configText = await response.text();
+                }
+
+                let decodedText = configText;
+                try {
+                    decodedText = atob(configText);
+                } catch (e) {
+                    // If not Base64, use raw text
+                }
+
+                const configLines = decodedText.split('\n').filter(line => line.trim());
+                processedConfigs = [];
+
+                for (let line of configLines) {
+                    let config = line.trim();
+                    if (config.match(/^(vmess|vless|ss|trojan):\/\//i)) {
+                        const hashIndex = config.indexOf('#');
+                        if (hashIndex !== -1) {
+                            config = config.substring(0, hashIndex);
+                        }
+                        config += `#${newRemark}`;
+                        processedConfigs.push(config);
+                    }
+                }
+
+                if (processedConfigs.length === 0) {
+                    outputLink.textContent = 'No valid v2ray configs found!';
+                    downloadBtn.style.display = 'none';
+                    return;
+                }
+
+                const newSubContent = processedConfigs.join('\n');
+                const newSubBase64 = btoa(newSubContent);
+                const outputFileName = `configs_${newRemark}_${Date.now()}.txt`;
+                const newSubLink = `${githubBaseUrl}${outputFileName}`;
+                outputLink.innerHTML = `New Subscription Link (Upload this to GitHub): <a href="#" onclick="navigator.clipboard.writeText('${newSubContent}'); alert('Configs copied! Upload to GitHub as ${outputFileName}');">${newSubLink}</a>`;
+                downloadBtn.style.display = 'block';
+            } catch (error) {
+                outputLink.textContent = `Error: ${error.message}`;
+                downloadBtn.style.display = 'none';
+            }
+        }
+
+        function downloadTxt() {
+            const newSubContent = processedConfigs.join('\n');
+            const blob = new Blob([newSubContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `configs_${document.getElementById('newRemark').value}_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
